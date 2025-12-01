@@ -13,7 +13,7 @@ class Semester(models.Model):
     minor_cgpa = models.FloatField(null=True, blank=True)    # SGPA with minor courses
     total_credits = models.IntegerField(default=0)  # Add total_credits field
     total_points = models.FloatField(default=0.0)
-    complte_courses = models.IntegerField(default=0)  # Add total_credits field
+    complete_courses = models.IntegerField(default=0)  # Add complete_courses field
     minor_credits = models.IntegerField(default=0)  # Add total_credits field
     earn_credits = models.IntegerField(default=0)  # Add total_credits field
     minor_points = models.FloatField(default=0.0)  # Add total_points field

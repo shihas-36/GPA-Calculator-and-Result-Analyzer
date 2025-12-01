@@ -3,10 +3,10 @@ import 'dart:io';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'services/api_service.dart';
 
 class ExportPage extends StatelessWidget {
   final storage =
@@ -14,33 +14,10 @@ class ExportPage extends StatelessWidget {
 
   Future<void> fetchAndGeneratePDF(BuildContext context, String ktuid) async {
     try {
-      // Determine the base URL dynamically
-      final baseUrl = Platform.isAndroid
-          ? 'http://10.0.2.2:8000' // Emulator
-          : 'http://192.168.1.100:8000'; // Replace with your machine's IP for physical devices
-
       // Fetch GPA data for the specific student from the Django API
-      final token = await storage.read(key: 'auth_token');
-      if (token == null) throw Exception('No authentication token found');
+      print('Sending POST request to export PDF with KTUID: $ktuid');
 
-      final url = Uri.parse('$baseUrl/export-pdf/');
-      final headers = {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      };
-      final body =
-          json.encode({'ktuid': ktuid}); // Pass the KTUID to the backend
-
-      // Log the request details
-      print('Sending POST request to $url');
-      print('Request Headers: $headers');
-      print('Request Body: $body');
-
-      final response = await http.post(
-        url,
-        headers: headers,
-        body: body,
-      );
+      final response = await ApiService.exportGpaData({'ktuid': ktuid});
 
       // Log the response
       print('Export PDF Response: ${response.statusCode}');

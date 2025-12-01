@@ -4,6 +4,7 @@ import 'package:syncfusion_flutter_charts/charts.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'services/api_service.dart'; // Import the new API service
 import 'gpa.dart';
 import 'grade.dart';
 import 'minor.dart';
@@ -11,6 +12,7 @@ import 'summary.dart';
 import 'export.dart';
 import 'notifications.dart';
 import 'auth/login_page.dart';
+import 'pred_screen.dart';
 
 class StartPage extends StatefulWidget {
   const StartPage({Key? key}) : super(key: key);
@@ -44,13 +46,7 @@ class _StartPageState extends State<StartPage> {
     });
 
     try {
-      final token = await storage.read(key: 'auth_token');
-      if (token == null) throw Exception('No authentication token found');
-
-      final response = await http.get(
-        Uri.parse('http://10.0.2.2:8000/get_user_data/'),
-        headers: {'Authorization': 'Bearer $token'},
-      );
+      final response = await ApiService.getUserData();
 
       print('Backend Response: ${response.body}'); // Log the response
 
@@ -115,13 +111,7 @@ class _StartPageState extends State<StartPage> {
   Future<void> _checkIncrementNotification() async {
     print('Checking increment notification...'); // Debug log
     try {
-      final token = await storage.read(key: 'auth_token');
-      if (token == null) throw Exception('No authentication token found');
-
-      final response = await http.get(
-        Uri.parse('http://10.0.2.2:8000/check_increment_notification/'),
-        headers: {'Authorization': 'Bearer $token'},
-      );
+      final response = await ApiService.checkIncrementNotification();
 
       print('Notification API Response: ${response.body}'); // Debug log
 
@@ -169,13 +159,7 @@ class _StartPageState extends State<StartPage> {
 
   Future<void> _confirmIncrementNotification() async {
     try {
-      final token = await storage.read(key: 'auth_token');
-      if (token == null) throw Exception('No authentication token found');
-
-      final response = await http.post(
-        Uri.parse('http://10.0.2.2:8000/confirm_increment_notification/'),
-        headers: {'Authorization': 'Bearer $token'},
-      );
+      final response = await ApiService.confirmIncrementNotification();
 
       if (response.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -183,10 +167,7 @@ class _StartPageState extends State<StartPage> {
         );
 
         // Fetch the updated semester from the backend
-        final updatedResponse = await http.get(
-          Uri.parse('http://10.0.2.2:8000/get_user_data/'),
-          headers: {'Authorization': 'Bearer $token'},
-        );
+        final updatedResponse = await ApiService.getUserData();
 
         if (updatedResponse.statusCode == 200) {
           final updatedData = json.decode(updatedResponse.body);
@@ -224,13 +205,7 @@ class _StartPageState extends State<StartPage> {
 
   Future<void> _denyIncrementNotification() async {
     try {
-      final token = await storage.read(key: 'auth_token');
-      if (token == null) throw Exception('No authentication token found');
-
-      final response = await http.post(
-        Uri.parse('http://10.0.2.2:8000/deny_increment_notification/'),
-        headers: {'Authorization': 'Bearer $token'},
-      );
+      final response = await ApiService.denyIncrementNotification();
 
       if (response.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -277,17 +252,8 @@ class _StartPageState extends State<StartPage> {
 
   Future<void> _updateMinorStatus(bool isMinor) async {
     try {
-      final token = await storage.read(key: 'auth_token');
-      if (token == null) throw Exception('No authentication token found');
-
-      final response = await http.post(
-        Uri.parse('http://10.0.2.2:8000/update_minor_status/'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: json.encode({'is_minor': isMinor}),
-      );
+      final response =
+          await ApiService.updateMinorStatus({'is_minor': isMinor});
 
       if (response.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -335,17 +301,8 @@ class _StartPageState extends State<StartPage> {
 
   Future<void> _updateHonorStatus(bool isHonors) async {
     try {
-      final token = await storage.read(key: 'auth_token');
-      if (token == null) throw Exception('No authentication token found');
-
-      final response = await http.post(
-        Uri.parse('http://10.0.2.2:8000/update_honor_status/'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: json.encode({'is_honors': isHonors}),
-      );
+      final response =
+          await ApiService.updateHonorStatus({'is_honors': isHonors});
 
       if (response.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -664,6 +621,8 @@ class _StartPageState extends State<StartPage> {
       children: [
         _buildActionButton(
             Icons.calculate, 'Minor', AppColors.lightYellow), // Light Pink
+        _buildActionButton(Icons.analytics, 'Predict',
+            AppColors.lightYellow), // Predict button
         _buildActionButton(
             Icons.summarize, 'Summary', AppColors.lightYellow), // Light Pink
         _buildActionButton(
@@ -690,6 +649,9 @@ class _StartPageState extends State<StartPage> {
                     context,
                     MaterialPageRoute(
                         builder: (context) => MinorCalculatorPage()));
+              } else if (label == 'Predict') {
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (context) => StudentDataForm()));
               } else if (label == 'Summary') {
                 Navigator.push(context,
                     MaterialPageRoute(builder: (context) => SummaryPage()));

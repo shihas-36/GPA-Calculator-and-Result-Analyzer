@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:intl/intl.dart';
 import 'theme/colors.dart';
+import 'services/api_service.dart';
 
 class UserNotification {
   final int id;
@@ -63,12 +63,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
         return;
       }
 
-      final response = await http.get(
-        Uri.parse('http://10.0.2.2:8000/api/notifications/'),
-        headers: {
-          'Authorization': 'Bearer $authToken',
-        },
-      );
+      final response = await ApiService.getNotifications();
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
@@ -102,13 +97,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
         return;
       }
 
-      final response = await http.post(
-        Uri.parse(
-            'http://10.0.2.2:8000/api/notifications/$notificationId/read/'),
-        headers: {
-          'Authorization': 'Bearer $authToken',
-        },
-      );
+      final response = await ApiService.markNotificationAsRead(notificationId);
 
       if (response.statusCode == 200) {
         setState(() {

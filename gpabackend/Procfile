@@ -1,0 +1,2 @@
+web: gunicorn gpabackend.wsgi:application
+release: python manage.py migrate

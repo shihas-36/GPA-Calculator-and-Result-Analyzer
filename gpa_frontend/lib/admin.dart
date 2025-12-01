@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'auth/login_page.dart'; // Import the LoginPage
 import 'theme/colors.dart'; // Import AppColors
+import 'services/api_service.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   @override
@@ -27,14 +27,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     });
 
     try {
-      final authToken = await storage.read(key: 'auth_token');
-      final response = await http.post(
-        Uri.parse('http://10.0.2.2:8000/api/increment_semester/'),
-        headers: {
-          'Authorization': 'Bearer $authToken',
-          'Content-Type': 'application/json',
-        },
-      );
+      final response = await ApiService.incrementSemester();
 
       final data = json.decode(response.body);
       if (response.statusCode == 200) {
@@ -68,18 +61,10 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     });
 
     try {
-      final authToken = await storage.read(key: 'auth_token');
-      final response = await http.post(
-        Uri.parse('http://10.0.2.2:8000/api/send_notification/'),
-        headers: {
-          'Authorization': 'Bearer $authToken',
-          'Content-Type': 'application/json',
-        },
-        body: json.encode({
-          'header': _headerController.text,
-          'content': _contentController.text,
-        }),
-      );
+      final response = await ApiService.sendNotification({
+        'header': _headerController.text,
+        'content': _contentController.text,
+      });
 
       final data = json.decode(response.body);
       if (response.statusCode == 200) {

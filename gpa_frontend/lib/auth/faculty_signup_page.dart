@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:gpa_frontend/faculty.dart';
 import '../theme/colors.dart'; // Import AppColors
+import '../services/api_service.dart';
 
 class FacultySignUpPage extends StatefulWidget {
   @override
@@ -43,23 +43,15 @@ class _FacultySignUpPageState extends State<FacultySignUpPage> {
         'KTUID': _ktuidController.text, // Include KTUID in the request
       };
 
-      final signUpResponse = await http.post(
-        Uri.parse('http://10.0.2.2:8000/api/faculty/'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(userData),
-      );
+      final signUpResponse = await ApiService.facultySignUp(userData);
 
       if (signUpResponse.statusCode != 201) {
         throw jsonDecode(signUpResponse.body)['error'] ?? 'Signup failed';
       }
 
-      final loginResponse = await http.post(
-        Uri.parse('http://10.0.2.2:8000/token/'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'email': _emailController.text,
-          'password': _passwordController.text,
-        }),
+      final loginResponse = await ApiService.login(
+        _emailController.text,
+        _passwordController.text,
       );
 
       if (loginResponse.statusCode != 200) {

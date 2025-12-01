@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'services/api_service.dart';
 import 'theme/colors.dart';
 
 class GpaCalculator extends StatefulWidget {
@@ -60,13 +61,7 @@ class _GpaCalculatorState extends State<GpaCalculator>
 
   Future<void> fetchSubjects() async {
     try {
-      final token = await storage.read(key: 'auth_token');
-      if (token == null) throw Exception('No authentication token found');
-
-      final response = await http.get(
-        Uri.parse('http://10.0.2.2:8000/get_subjects/'),
-        headers: {'Authorization': 'Bearer $token'},
-      );
+      final response = await ApiService.getSubjects();
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body) as Map<String, dynamic>;
@@ -125,13 +120,7 @@ class _GpaCalculatorState extends State<GpaCalculator>
 
   Future<void> fetchUserData() async {
     try {
-      final token = await storage.read(key: 'auth_token');
-      if (token == null) throw Exception('No authentication token found');
-
-      final response = await http.get(
-        Uri.parse('http://10.0.2.2:8000/get_user_data/'),
-        headers: {'Authorization': 'Bearer $token'},
-      );
+      final response = await ApiService.getUserData();
 
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
@@ -174,9 +163,6 @@ class _GpaCalculatorState extends State<GpaCalculator>
     });
 
     try {
-      final token = await storage.read(key: 'auth_token');
-      if (token == null) throw Exception('No authentication token found');
-
       final semester = subjectsStructure.keys.elementAt(_tabController.index);
 
       // Prepare grades for currently selected subjects
@@ -192,19 +178,10 @@ class _GpaCalculatorState extends State<GpaCalculator>
         throw Exception('Please select grades for all subjects');
       }
 
-      final payload = json.encode({
+      final response = await ApiService.calculateGpa({
         'semester': semester,
         'grades': gradesToSend,
       });
-      print('Payload: $payload');
-      final response = await http.post(
-        Uri.parse('http://10.0.2.2:8000/calculate_gpa/'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: payload,
-      );
 
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);

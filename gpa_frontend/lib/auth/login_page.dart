@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:gpa_frontend/theme/colors.dart'; // Import AppColors
 import 'package:gpa_frontend/start.dart';
+import '../services/api_service.dart'; // Import API service
 import 'choose_signup_page.dart';
 import 'package:gpa_frontend/faculty.dart';
 import 'package:gpa_frontend/admin.dart';
+import 'package:gpa_frontend/gpa.dart';
 
 class LoginPage extends StatefulWidget {
   @override
@@ -32,13 +33,9 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
-      final response = await http.post(
-        Uri.parse('http://10.0.2.2:8000/token/'),
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'email': _emailController.text,
-          'password': _passwordController.text,
-        }),
+      final response = await ApiService.login(
+        _emailController.text,
+        _passwordController.text,
       );
 
       if (response.statusCode == 200) {
@@ -57,13 +54,7 @@ class _LoginPageState extends State<LoginPage> {
         await storage.write(key: 'ktuid', value: KTUID);
 
         // Check superuser status
-        final isSuperuserResponse = await http.get(
-          Uri.parse('http://10.0.2.2:8000/api/is_admin/'),
-          headers: {
-            'Authorization': 'Bearer $accessToken',
-            'Content-Type': 'application/json',
-          },
-        );
+        final isSuperuserResponse = await ApiService.checkIsAdmin();
 
         if (isSuperuserResponse.statusCode == 200) {
           final superuserData = json.decode(isSuperuserResponse.body);
@@ -81,13 +72,7 @@ class _LoginPageState extends State<LoginPage> {
           }
 
           // Check faculty status
-          final isFacultyResponse = await http.get(
-            Uri.parse('http://10.0.2.2:8000/api/is_faculty/'),
-            headers: {
-              'Authorization': 'Bearer $accessToken',
-              'Content-Type': 'application/json',
-            },
-          );
+          final isFacultyResponse = await ApiService.checkIsFaculty();
 
           if (isFacultyResponse.statusCode == 200) {
             final isFacultyData = json.decode(isFacultyResponse.body);
@@ -95,13 +80,41 @@ class _LoginPageState extends State<LoginPage> {
 
             // Log faculty status
             print('Is Faculty: $isFaculty');
+            if (isFaculty) {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => FacultyPage()),
+              );
+            } else {
+              // Student path: check if user needs initial GPA setup
+              final userDataResponse = await ApiService.getUserData();
+              if (userDataResponse.statusCode == 200) {
+                final userData = json.decode(userDataResponse.body);
+                final cgpa = userData['cgpa'];
+                final semesters = userData['semesters'] as List<dynamic>?;
+                final needsSetup =
+                    (cgpa == null) || (semesters == null) || semesters.isEmpty;
 
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) => isFaculty ? FacultyPage() : StartPage(),
-              ),
-            );
+                if (needsSetup) {
+                  // Navigate to GPA calculator for first-time grade entry
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (context) => GpaCalculator()),
+                  );
+                } else {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (context) => StartPage()),
+                  );
+                }
+              } else {
+                // Fallback to start page if unable to fetch user data
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => StartPage()),
+                );
+              }
+            }
           } else {
             throw Exception(
                 'Failed to fetch faculty status: ${isFacultyResponse.body}');

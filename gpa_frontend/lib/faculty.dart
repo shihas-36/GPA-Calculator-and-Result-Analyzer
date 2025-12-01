@@ -2,30 +2,20 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:open_file/open_file.dart';
 import 'package:gpa_frontend/auth/login_page.dart';
 import 'Theme/colors.dart'; // Import AppColors
 import 'package:gpa_frontend/export.dart'; // Import the existing export package
-
-const String baseUrl = 'http://10.0.2.2:8000'; // Example base URL
+import 'services/api_service.dart';
 
 class FacultyService {
   final storage = FlutterSecureStorage();
 
   Future<List<Map<String, dynamic>>> fetchStudentsByFaculty() async {
-    final authToken = await storage.read(key: 'auth_token'); // Retrieve token
-    final url = Uri.parse('$baseUrl/fetch_students_by_faculty/');
     try {
-      print('Sending GET request to $url'); // Log the request URL
-      final response = await http.get(
-        url,
-        headers: {
-          'Authorization': 'Bearer $authToken',
-          'Content-Type': 'application/json',
-        },
-      );
+      print('Sending GET request to fetch students by faculty');
+      final response = await ApiService.fetchStudentsByFaculty();
 
       // Log the response
       print('Fetch Students Response: ${response.statusCode}');
@@ -57,20 +47,8 @@ class FacultyService {
   Future<void> fetchAndGeneratePDF(BuildContext context, String ktuid) async {
     print('fetchAndGeneratePDF method called'); // Add this
     try {
-      final authToken = await storage.read(key: 'auth_token');
-      if (authToken == null) throw Exception('No authentication token found');
-
-      final url = Uri.parse('$baseUrl/export-pdf/');
-      print(
-          'Sending POST request to $url with KTUID: $ktuid'); // Log the request
-      final response = await http.post(
-        url,
-        headers: {
-          'Authorization': 'Bearer $authToken',
-          'Content-Type': 'application/json',
-        },
-        body: json.encode({'ktuid': ktuid}), // Pass the KTUID to the backend
-      );
+      print('Sending POST request to export PDF with KTUID: $ktuid');
+      final response = await ApiService.exportGpaData({'ktuid': ktuid});
 
       // Log the response
       print('Export PDF Response: ${response.statusCode}');

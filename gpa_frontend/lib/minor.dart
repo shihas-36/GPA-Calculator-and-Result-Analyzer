@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:gpa_frontend/theme/colors.dart'; // Import AppColors,
+import 'services/api_service.dart';
 
 class MinorCalculatorPage extends StatefulWidget {
   @override
@@ -31,15 +31,7 @@ class _MinorCalculatorPageState extends State<MinorCalculatorPage> {
 
   Future<void> _checkMinorStatus() async {
     try {
-      final token = await storage.read(key: 'auth_token');
-      if (token == null) throw Exception('No authentication token found');
-
-      final response = await http.get(
-        Uri.parse('http://10.0.2.2:8000/check_minor_status/'),
-        headers: {
-          'Authorization': 'Bearer $token',
-        },
-      );
+      final response = await ApiService.checkMinorStatus();
       print("Response body: ${response.body}");
       print("Response status code: ${response.statusCode}");
 
@@ -79,15 +71,7 @@ class _MinorCalculatorPageState extends State<MinorCalculatorPage> {
 
   Future<void> _fetchSubjects() async {
     try {
-      final token = await storage.read(key: 'auth_token');
-      if (token == null) throw Exception('No authentication token found');
-
-      final response = await http.get(
-        Uri.parse('http://10.0.2.2:8000/get_minor_subjects/'),
-        headers: {
-          'Authorization': 'Bearer $token',
-        },
-      );
+      final response = await ApiService.getMinorSubjects();
 
       print("Response status code: ${response.statusCode}");
       print("Response body: ${response.body}");
@@ -167,15 +151,7 @@ class _MinorCalculatorPageState extends State<MinorCalculatorPage> {
 
   Future<void> _fetchSavedMinorData(String semester, String type) async {
     try {
-      final token = await storage.read(key: 'auth_token');
-      if (token == null) throw Exception('No authentication token found');
-
-      final response = await http.get(
-        Uri.parse('http://10.0.2.2:8000/get_user_data/'),
-        headers: {
-          'Authorization': 'Bearer $token',
-        },
-      );
+      final response = await ApiService.getUserData();
 
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
@@ -210,37 +186,27 @@ class _MinorCalculatorPageState extends State<MinorCalculatorPage> {
 
   Future<void> _calculateNewSgpa(String semester, String type) async {
     try {
-      final token = await storage.read(key: 'auth_token');
-      if (token == null) throw Exception('No authentication token found');
-
       // Get the selected subject and its grade for the selected semester
       final selectedSubject = type == 'Minor'
           ? _selectedMinorSubjects[semester]
           : _selectedHonorSubjects[semester];
       final selectedGrade = _gradeControllers[selectedSubject]?.text ?? 'S';
 
-      if (selectedSubject == null || selectedGrade == null) {
+      if (selectedSubject == null || selectedGrade.isEmpty) {
         throw Exception(
             'No selected subject or grade found for the selected semester');
       }
 
       final minorGrades = {selectedSubject: selectedGrade};
 
-      final response = await http.post(
-        Uri.parse('http://10.0.2.2:8000/calculate_minor/'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-        body: json.encode({
-          'semester': semester,
-          'minor_grades': minorGrades,
-          'Type': type, // Include the selected type (Minor or Honor)
-          'Bucket': type == 'Minor'
-              ? _selectedMinorBucket
-              : _selectedHonorBucket, // Include the selected bucket
-        }),
-      );
+      final response = await ApiService.calculateMinor({
+        'semester': semester,
+        'minor_grades': minorGrades,
+        'Type': type, // Include the selected type (Minor or Honor)
+        'Bucket': type == 'Minor'
+            ? _selectedMinorBucket
+            : _selectedHonorBucket, // Include the selected bucket
+      });
 
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);

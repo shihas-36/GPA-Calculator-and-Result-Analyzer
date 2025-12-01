@@ -1,19 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:gpa_frontend/theme/colors.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:collection';
+import 'services/api_service.dart';
 
 class GradeCalculatorPage extends StatefulWidget {
   @override
   _GradeCalculatorPageState createState() => _GradeCalculatorPageState();
 }
 
-class _GradeCalculatorPageState extends State<GradeCalculatorPage>
-    with TickerProviderStateMixin {
+class _GradeCalculatorPageState extends State<GradeCalculatorPage> {
   final storage = FlutterSecureStorage();
-  late TabController _tabController;
+  String? _currentSemesterKey;
   Map<String, Map<String, Map<String, int>>> subjectsStructure = {};
   Map<String, Map<String, String?>> selectedSubjects = {};
   Map<String, Map<String, String?>> selectedGrades = {};
@@ -34,13 +33,44 @@ class _GradeCalculatorPageState extends State<GradeCalculatorPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 1, vsync: this);
     _initializeData();
+  }
+
+  Future<void> _loadSavedGrades(String semesterKey) async {
+    try {
+      final response = await ApiService.getUserData();
+      if (response.statusCode != 200) return;
+      final data = json.decode(response.body) as Map<String, dynamic>;
+      final semesters = data['semesters'] as List<dynamic>?;
+      if (semesters == null) return;
+
+      // Find matching semester entry
+      final matched = semesters.firstWhere(
+          (s) => (s['semester'] as String) == semesterKey,
+          orElse: () => null);
+      if (matched == null) return;
+
+      final subjectList = (matched['subjects'] as List<dynamic>?) ?? [];
+
+      setState(() {
+        gradeResults[semesterKey] = {};
+        for (var subj in subjectList) {
+          final name = subj['name'] as String?;
+          final grade = subj['grade'] as String?;
+          if (name != null) {
+            gradeResults[semesterKey]![name] =
+                (grade == null || grade == 'N/A') ? null : grade;
+          }
+        }
+      });
+    } catch (e) {
+      // ignore load errors silently
+      print('Error loading saved grades: $e');
+    }
   }
 
   @override
   void dispose() {
-    _tabController.dispose();
     super.dispose();
   }
 
@@ -48,32 +78,25 @@ class _GradeCalculatorPageState extends State<GradeCalculatorPage>
     try {
       final savedSemester = await storage.read(key: 'current_semester');
       await fetchSubjects();
+      // Determine which semester to show: prefer savedSemester, else use the last available
       if (savedSemester != null &&
           subjectsStructure.containsKey(savedSemester)) {
-        _tabController = TabController(
-          length: subjectsStructure.length,
-          initialIndex: subjectsStructure.keys.toList().indexOf(savedSemester),
-          vsync: this,
-        );
+        _currentSemesterKey = savedSemester;
+      } else if (subjectsStructure.isNotEmpty) {
+        // Use the last key (assumed latest/current)
+        _currentSemesterKey = subjectsStructure.keys.last;
       } else {
-        _updateTabController();
+        _currentSemesterKey = null;
+      }
+      // Load any previously saved grades for the current semester so they persist across opens
+      if (_currentSemesterKey != null) {
+        await _loadSavedGrades(_currentSemesterKey!);
       }
     } catch (e) {
       setState(() {
         errorMessage = 'Initialization error: $e';
         isLoading = false;
       });
-    }
-  }
-
-  void _updateTabController() {
-    final newLength = subjectsStructure.keys.length;
-    if (_tabController.length != newLength) {
-      _tabController.dispose();
-      _tabController = TabController(
-        length: newLength,
-        vsync: this,
-      );
     }
   }
 
@@ -84,13 +107,7 @@ class _GradeCalculatorPageState extends State<GradeCalculatorPage>
     });
 
     try {
-      final token = await storage.read(key: 'auth_token');
-      if (token == null) throw Exception('No authentication token found');
-
-      final response = await http.get(
-        Uri.parse('http://10.0.2.2:8000/get_subjects/'),
-        headers: {'Authorization': 'Bearer $token'},
-      );
+      final response = await ApiService.getSubjects();
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body) as Map<String, dynamic>;
@@ -186,22 +203,11 @@ class _GradeCalculatorPageState extends State<GradeCalculatorPage>
                       setState(() => isSubmitting = true);
 
                       try {
-                        final token = await storage.read(key: 'auth_token');
-                        if (token == null)
-                          throw Exception('No authentication token found');
-
-                        final response = await http.post(
-                          Uri.parse('http://10.0.2.2:8000/calculate_grade/'),
-                          headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': 'Bearer $token',
-                          },
-                          body: json.encode({
-                            'marks': total,
-                            'subject': subject, // Include subject
-                            'semester': semester // Include semester
-                          }),
-                        );
+                        final response = await ApiService.calculateGrade({
+                          'marks': total,
+                          'subject': subject, // Include subject
+                          'semester': semester // Include semester
+                        });
 
                         if (response.statusCode == 200) {
                           final result = json.decode(response.body);
@@ -411,31 +417,14 @@ class _GradeCalculatorPageState extends State<GradeCalculatorPage>
     return Scaffold(
       appBar: AppBar(
         title: Text('Mark-Grade Converter'),
-        bottom: subjectsStructure.isNotEmpty
-            ? TabBar(
-                controller: _tabController,
-                isScrollable: true,
-                labelColor: AppColors.lightYellow, // Active tab text color
-                unselectedLabelColor: Colors.grey, // Inactive tab text color
-                indicatorColor: AppColors.lightYellow, // Indicator color
-                tabs: subjectsStructure.keys.map((semester) {
-                  return Tab(text: semester.replaceAll('_', ' ').toUpperCase());
-                }).toList(),
-              )
-            : null,
       ),
       body: isLoading
           ? Center(child: CircularProgressIndicator())
           : errorMessage != null
               ? Center(child: Text(errorMessage!))
-              : subjectsStructure.isEmpty
+              : subjectsStructure.isEmpty || _currentSemesterKey == null
                   ? Center(child: Text('No subjects found'))
-                  : TabBarView(
-                      controller: _tabController,
-                      children: subjectsStructure.keys.map((semester) {
-                        return _buildSemesterView(semester);
-                      }).toList(),
-                    ),
+                  : _buildSemesterView(_currentSemesterKey!),
     );
   }
 }

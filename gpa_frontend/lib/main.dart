@@ -3,6 +3,7 @@ import 'auth/signup_page.dart';
 import 'auth/login_page.dart';
 import 'gpa.dart';
 import 'minor.dart';
+import 'pred_screen.dart';
 import 'grade.dart';
 import 'start.dart'; // Example additional page
 import 'export.dart'; // Example additional page
@@ -51,6 +52,7 @@ class MyApp extends StatelessWidget {
         '/grade': (context) => GradeCalculatorPage(),
         '/home': (context) => StartPage(), // Example additional route
         '/profile': (context) => ExportPage(), // Example additional route
+        '/pred': (context) => StudentDataForm(), // Example additional route
       },
     );
   }

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:gpa_frontend/theme/colors.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'services/api_service.dart';
 
 class SummaryPage extends StatefulWidget {
   @override
@@ -21,14 +21,7 @@ class _SummaryPageState extends State<SummaryPage> {
   }
 
   Future<void> fetchSummaryData() async {
-    final token = await storage.read(key: 'auth_token');
-    if (token == null) throw Exception('No authentication token found');
-    final response = await http.get(
-      Uri.parse('http://10.0.2.2:8000/Summary/'), // Fix the typo in the URL
-      headers: {
-        'Authorization': 'Bearer $token',
-      },
-    );
+    final response = await ApiService.getSummary();
 
     if (response.statusCode == 200) {
       setState(() {

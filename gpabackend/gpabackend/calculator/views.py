@@ -84,6 +84,7 @@ def get_user_data(request):
         return Response(response_data, status=status.HTTP_200_OK)
 
     except Exception as e:
+        print("Error in get_user_data:", e)
         return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 @api_view(['POST'])
@@ -187,7 +188,7 @@ def calculate_gpa(request):
                 print(GRADE_VALUES[grade] ,"*", subject.credits,"=",gcredit)  # Log grade and credits
                 if grade != 'F':
                     semester_obj.earn_credits += subject.credits
-                    semester_obj.complte_courses += 1  # Increment complete courses count
+                    semester_obj.complete_courses += 1  # Increment complete courses count
         print("Total credits:", semester_obj.total_credits)  # Log total credits
         print("Total points:", semester_obj.total_points)  # Log total points   
         print("Earned credits:", semester_obj.earn_credits)  # Log earned credits
@@ -281,13 +282,50 @@ def calculate_grade(request):
         # Save the grade in the new GradeDetail model
         user = request.user
         semester, _ = Semester.objects.get_or_create(user=user, semester=semester_name)
-        subject, _ = Subject.objects.get_or_create(semester=semester, name=subject_name.strip())
+
+        # Determine credits for the subject from CREDITS mapping
+        credits = None
+        try:
+            degree_credits = CREDITS.get(user.degree, {})
+            semester_slots = degree_credits.get(semester_name, {})
+            for slot, courses in semester_slots.items():
+                # courses is expected to be a dict mapping subject names to credit values
+                if subject_name.strip() in courses:
+                    credits = courses[subject_name.strip()]
+                    break
+        except Exception as e:
+            print(f"Error while looking up credits: {e}")
+
+        if credits is None:
+            # If credits cannot be determined, return an informative error
+            response_data = {'error': f'Credits not found for subject "{subject_name}" in {semester_name}'}
+            print("Response body:", response_data)  # Log response body
+            return Response(response_data, status=status.HTTP_400_BAD_REQUEST)
+
+        # Ensure subject is created with credits (avoid NOT NULL constraint failures)
+        subject, _ = Subject.objects.get_or_create(
+            semester=semester,
+            name=subject_name.strip(),
+            defaults={'credits': credits}
+        )
+        # Update credits to the resolved value in case it changed or was missing
+        subject.credits = credits
+        subject.save()
 
         # Create or update a GradeDetail object
         GradeDetail.objects.update_or_create(
             subject=subject,
             defaults={'marks': marks, 'grade': grade}
         )
+
+        # Also update the simple Grade model so saved grades appear in get_user_data
+        try:
+            Grade.objects.update_or_create(
+                subject=subject,
+                defaults={'grade': grade}
+            )
+        except Exception as e:
+            print(f"Warning: failed to update Grade model: {e}")
 
         response_data = {
             'subject': subject_name,

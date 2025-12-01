@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
 import 'login_page.dart';
 import '../theme/colors.dart'; // Import AppColors
+import '../services/api_service.dart';
 
 class VerificationScreen extends StatefulWidget {
   final String email;
@@ -26,15 +25,9 @@ class _VerificationScreenState extends State<VerificationScreen> {
   Future<void> _verifyOTP() async {
     setState(() => _isVerifying = true);
     try {
-      final response = await http.post(
-        Uri.parse('http://10.0.2.2:8000/api/verify-otp/'),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode({
-          'email': widget.email,
-          'otp': _otpController.text,
-        }),
+      final response = await ApiService.verifyOtp(
+        widget.email,
+        _otpController.text,
       );
 
       // Print the response for debugging
@@ -66,11 +59,7 @@ class _VerificationScreenState extends State<VerificationScreen> {
   Future<void> _resendOTP() async {
     setState(() => _isResending = true);
     try {
-      final response = await http.post(
-        Uri.parse('http://10.0.2.2:8000/api/resend-otp/'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': widget.email}),
-      );
+      final response = await ApiService.resendOtp(widget.email);
 
       if (response.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(

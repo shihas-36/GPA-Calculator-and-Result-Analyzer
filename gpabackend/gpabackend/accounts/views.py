@@ -59,8 +59,10 @@ class SignUpView(APIView):
                 'message': 'User created. OTP sent to email.',
                 'token': str(token)  # Send the token to the frontend
             }, status=status.HTTP_201_CREATED)
-
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            # Log serializer validation errors to assist debugging
+            print("SignUp serializer errors:", serializer.errors)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class LoginView(APIView):
