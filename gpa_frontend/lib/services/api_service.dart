@@ -4,21 +4,30 @@ import 'dart:convert';
 import 'dart:io';
 
 class ApiService {
+  // Production Render URL - update this with your actual Render domain
+  static const String _productionUrl =
+      'https://gpa-calculator-api.onrender.com';
+
+  // Development URLs (kept for local testing if needed)
   static const String _androidEmulatorUrl = 'http://10.0.2.2:8000';
   static const String _localUrl = 'http://127.0.0.1:8000';
-  // static const String _productionUrl = 'https://your-production-domain.com'; // Uncomment for production
 
   static const storage = FlutterSecureStorage();
 
-  // Get the appropriate base URL based on platform and environment
+  // Get the appropriate base URL based on environment
+  // Currently configured to use production server only
   static String get baseUrl {
-    if (Platform.isAndroid) {
-      return _androidEmulatorUrl;
-    } else if (Platform.isIOS) {
-      return _localUrl; // or your machine's IP for iOS simulator
-    } else {
-      return _localUrl; // For web/desktop
-    }
+    // Always use production URL for deployed app
+    return _productionUrl;
+
+    // Uncomment below to switch between environments based on platform:
+    // if (Platform.isAndroid) {
+    //   return _productionUrl; // or _androidEmulatorUrl for local testing
+    // } else if (Platform.isIOS) {
+    //   return _productionUrl; // or _localUrl for iOS simulator testing
+    // } else {
+    //   return _productionUrl; // For web/desktop
+    // }
   }
 
   // Helper method to build full URL
