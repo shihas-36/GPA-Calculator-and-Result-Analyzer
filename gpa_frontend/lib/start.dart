@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:gpa_frontend/theme/colors.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
-import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'services/api_service.dart'; // Import the new API service
@@ -61,6 +60,9 @@ class _StartPageState extends State<StartPage> {
           userKtuid = data['user']['ktuid'] ?? 'N/A';
           currentCgpa = data['cgpa']?.toDouble() ?? 0.0;
 
+          // Get current semester from user data, not from semesters array
+          currentSemester = data['user']['semester'] ?? '';
+
           final semesters = data['semesters'] as List;
           semesterData = semesters.map((semester) {
             return SemesterData(
@@ -70,15 +72,14 @@ class _StartPageState extends State<StartPage> {
             );
           }).toList();
 
+          // Get SGPA and Minor GPA from the last completed semester if available
           if (semesters.isNotEmpty) {
-            currentSemester = semesters.last['semester']
-                .replaceAll('semester_', ''); // Extract numeric value
             currentSgpa = semesters.last['gpa']?.toDouble() ?? 0.0;
             currentMinorGpa = semesters.last['minor_gpa']?.toDouble() ?? 0.0;
-
-            // Debug log for currentSemester
-            print('Fetched Current Semester: $currentSemester');
           }
+
+          // Debug log for currentSemester
+          print('Fetched Current Semester: $currentSemester');
         });
       } else {
         throw Exception('Failed to load data: ${response.statusCode}');
@@ -174,8 +175,8 @@ class _StartPageState extends State<StartPage> {
           final updatedSemester = updatedData['user']['semester'];
 
           setState(() {
-            currentSemester = updatedSemester.replaceAll(
-                'semester_', ''); // Update currentSemester
+            currentSemester =
+                updatedSemester; // Use semester directly from user data
           });
 
           // Debug log for currentSemester
@@ -419,88 +420,191 @@ class _StartPageState extends State<StartPage> {
         );
       },
       child: Card(
-        elevation: 2,
-        color: AppColors.lightYellow, // Light Yellow
+        elevation: 4,
+        color: AppColors.lightYellow,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+            color: AppColors.lightBlue,
+            width: 1,
+          ),
         ),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'GPA Progress',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF00487F), // Primary Blue
-                ),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: AppColors.blue,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.trending_up,
+                      color: AppColors.white,
+                      size: 18,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Text(
+                    'GPA Progress',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.blue,
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 16),
-              SizedBox(
+              Container(
                 height: 240,
-                child: semesterData.isEmpty
-                    ? const Center(
-                        child: Text(
-                          'No data available',
-                          style: TextStyle(color: Color(0xFFF6AE2D)), // Orange
-                        ),
-                      )
-                    : SfCartesianChart(
-                        primaryXAxis: CategoryAxis(
-                          title: AxisTitle(
-                            text: 'Semester',
-                            textStyle: const TextStyle(
-                              color: AppColors.blue, // Primary Blue
+                decoration: BoxDecoration(
+                  color: AppColors.white.withValues(alpha: 0.7),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppColors.lightBlue.withValues(alpha: 0.5),
+                    width: 1,
+                  ),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: semesterData.isEmpty
+                        ? const Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.analytics_outlined,
+                                  size: 32,
+                                  color: AppColors.blue,
+                                ),
+                                SizedBox(height: 8),
+                                Text(
+                                  'No data available',
+                                  style: TextStyle(
+                                    color: AppColors.blue,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : SfCartesianChart(
+                            backgroundColor: Colors.transparent,
+                            plotAreaBorderWidth: 0,
+                            margin: const EdgeInsets.all(8),
+                            primaryXAxis: CategoryAxis(
+                              title: AxisTitle(
+                                text: 'Semester',
+                                textStyle: const TextStyle(
+                                  color: AppColors.blue,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              labelRotation: -30,
+                              labelStyle: const TextStyle(
+                                color: AppColors.blue,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              majorGridLines: const MajorGridLines(
+                                width: 0.5,
+                                color: AppColors.lightBlue,
+                                dashArray: <double>[3, 3],
+                              ),
+                              axisLine: const AxisLine(
+                                width: 1,
+                                color: AppColors.blue,
+                              ),
+                              labelIntersectAction:
+                                  AxisLabelIntersectAction.multipleRows,
+                              maximumLabels: 8,
+                            ),
+                            primaryYAxis: NumericAxis(
+                              minimum: 1,
+                              maximum: 10,
+                              interval: 1,
+                              title: AxisTitle(
+                                text: 'GPA',
+                                textStyle: const TextStyle(
+                                  color: AppColors.blue,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              labelStyle: const TextStyle(
+                                color: AppColors.blue,
+                                fontSize: 10,
+                              ),
+                              majorGridLines: const MajorGridLines(
+                                width: 0.5,
+                                color: AppColors.lightBlue,
+                                dashArray: <double>[3, 3],
+                              ),
+                              axisLine: const AxisLine(
+                                width: 1,
+                                color: AppColors.blue,
+                              ),
+                            ),
+                            tooltipBehavior: TooltipBehavior(
+                              enable: true,
+                              color: AppColors.blue,
+                              textStyle: const TextStyle(
+                                color: AppColors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              borderWidth: 1,
+                              borderColor: AppColors.primaryBlue,
+                              shadowColor: AppColors.lightBlue,
+                              elevation: 4,
+                              format: 'point.x\nGPA: point.y',
+                            ),
+                            series: <ChartSeries>[
+                              LineSeries<SemesterData, String>(
+                                dataSource: semesterData,
+                                xValueMapper: (data, _) => data.semesterName
+                                    .replaceAll('semester_', ''),
+                                yValueMapper: (data, _) => data.gpa,
+                                name: 'GPA',
+                                color: AppColors.primaryBlue,
+                                width: 2.5,
+                                animationDuration: 1200,
+                                markerSettings: const MarkerSettings(
+                                  isVisible: true,
+                                  shape: DataMarkerType.circle,
+                                  borderWidth: 2,
+                                  borderColor: AppColors.blue,
+                                  color: AppColors.yellow,
+                                  width: 8,
+                                  height: 8,
+                                ),
+                                dataLabelSettings: const DataLabelSettings(
+                                  isVisible: true,
+                                  textStyle: TextStyle(
+                                    fontSize: 9,
+                                    color: AppColors.blue,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  labelAlignment: ChartDataLabelAlignment.top,
+                                  margin: EdgeInsets.only(top: 5),
+                                ),
+                                enableTooltip: true,
+                              ),
+                            ],
+                            legend: Legend(
+                              isVisible: false,
                             ),
                           ),
-                          labelRotation: -45,
-                          majorGridLines: const MajorGridLines(width: 0),
-                        ),
-                        primaryYAxis: NumericAxis(
-                          minimum: 0,
-                          maximum: 10,
-                          interval: 1,
-                          title: AxisTitle(
-                            text: 'GPA',
-                            textStyle: const TextStyle(
-                              color: AppColors.blue, // Primary Blue
-                            ),
-                          ),
-                          majorGridLines: const MajorGridLines(width: 0),
-                        ),
-                        plotAreaBorderWidth: 0,
-                        tooltipBehavior: TooltipBehavior(enable: true),
-                        series: <ChartSeries>[
-                          LineSeries<SemesterData, String>(
-                            dataSource: semesterData,
-                            xValueMapper: (data, _) => data.semesterName,
-                            yValueMapper: (data, _) => data.gpa,
-                            name: 'GPA',
-                            color: AppColors.blue, // Orange
-                            width: 3,
-                            markerSettings: const MarkerSettings(
-                              isVisible: true,
-                              shape: DataMarkerType.circle,
-                              borderWidth: 2,
-                              borderColor: Color(0xFF00487F), // Orange
-                            ),
-                            dataLabelSettings: const DataLabelSettings(
-                              isVisible: true,
-                              textStyle: TextStyle(fontSize: 10),
-                            ),
-                          ),
-                        ],
-                        legend: Legend(
-                          isVisible: true,
-                          position: LegendPosition.bottom,
-                          textStyle: const TextStyle(
-                            fontSize: 12,
-                            color: Color(0xFF00487F), // Primary Blue
-                          ),
-                        ),
-                      ),
+                  ),
+                ),
               ),
             ],
           ),
@@ -638,7 +742,7 @@ class _StartPageState extends State<StartPage> {
           width: 64,
           height: 64,
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(16),
           ),
           child: IconButton(

@@ -2,7 +2,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework import status
-from .models import Semester, Subject, Grade, GradeDetail
+from .models import Semester, Subject, Grade, GradeDetail, CGPAPrediction
 from accounts.models import CustomUser
 from .courses import CREDITS
 from .minor import MINOR, HONOR  # Import the credits from minor.py
@@ -11,6 +11,7 @@ from django.http import HttpResponse
 from subprocess import run, PIPE  # To execute Dart script
 import json
 from django.http import JsonResponse
+from .cgpa_predictor import cgpa_predictor
 
 cgpa=0
 # Grade values mapping
@@ -658,4 +659,260 @@ def fetch_students_by_faculty(request):
         print("Response data:", response_data)  # Log the response
         return Response({'students': student_data}, status=status.HTTP_200_OK)
     except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def predict_cgpa(request):
+    """
+    Predict CGPA based on user input features
+    """
+    try:
+        data = request.data
+        user = request.user
+        
+        # Extract features from request data
+        features = {
+            'num_S': data.get('num_S', 0),
+            'num_A': data.get('num_A', 0),
+            'num_B': data.get('num_B', 0),
+            'num_C': data.get('num_C', 0),
+            'num_D': data.get('num_D', 0),
+            'num_F': data.get('num_F', 0),
+            'study_hours_per_week': data.get('study_hours_per_week', 12),
+            'participated_in_events': data.get('participated_in_events', 0),
+            'project_count': data.get('project_count', 0),
+            'internship_experience': data.get('internship_experience', 0),
+            'travel_time_minutes': data.get('travel_time_minutes', 30),
+            'lives_in_pg_or_hostel': data.get('lives_in_pg_or_hostel', 0),
+            'previous_board_cgpa': data.get('previous_board_cgpa', 8.0)
+        }
+        
+        # Validate input ranges
+        if not (0 <= features['study_hours_per_week'] <= 25):
+            return Response({'error': 'Study hours per week must be between 0 and 25'}, 
+                          status=status.HTTP_400_BAD_REQUEST)
+        
+        if not (5.0 <= features['previous_board_cgpa'] <= 10.0):
+            return Response({'error': 'Previous board CGPA must be between 5.0 and 10.0'}, 
+                          status=status.HTTP_400_BAD_REQUEST)
+        
+        # Make prediction
+        try:
+            predicted_cgpa = cgpa_predictor.predict_cgpa(features)
+            
+            # Save prediction history
+            CGPAPrediction.objects.create(
+                user=user,
+                predicted_cgpa=predicted_cgpa,
+                num_S=features['num_S'],
+                num_A=features['num_A'],
+                num_B=features['num_B'],
+                num_C=features['num_C'],
+                num_D=features['num_D'],
+                num_F=features['num_F'],
+                study_hours_per_week=features['study_hours_per_week'],
+                participated_in_events=bool(features['participated_in_events']),
+                project_count=features['project_count'],
+                internship_experience=bool(features['internship_experience']),
+                travel_time_minutes=features['travel_time_minutes'],
+                lives_in_pg_or_hostel=bool(features['lives_in_pg_or_hostel']),
+                previous_board_cgpa=features['previous_board_cgpa'],
+                prediction_type='manual'
+            )
+            
+            return Response({
+                'predicted_cgpa': predicted_cgpa,
+                'input_features': features,
+                'message': 'CGPA prediction successful'
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            print(f"Prediction error: {e}")
+            return Response({'error': f'Prediction failed: {str(e)}'}, 
+                          status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    except Exception as e:
+        print(f"General error in predict_cgpa: {e}")
+        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def predict_cgpa_from_user_data(request):
+    """
+    Predict CGPA using user's existing academic data combined with additional input
+    """
+    try:
+        user = request.user
+        data = request.data
+        
+        # Get user's existing semester data
+        user_semesters = Semester.objects.filter(user=user)
+        
+        # Calculate grade distribution from user's data
+        grade_counts = cgpa_predictor.calculate_grade_distribution(user_semesters)
+        
+        # Use provided features or defaults
+        features = {
+            'num_S': data.get('num_S', grade_counts['S']),
+            'num_A': data.get('num_A', grade_counts['A']),
+            'num_B': data.get('num_B', grade_counts['B']),
+            'num_C': data.get('num_C', grade_counts['C']),
+            'num_D': data.get('num_D', grade_counts['D']),
+            'num_F': data.get('num_F', grade_counts['F']),
+            'study_hours_per_week': data.get('study_hours_per_week', 12),
+            'participated_in_events': data.get('participated_in_events', 0),
+            'project_count': data.get('project_count', 0),
+            'internship_experience': data.get('internship_experience', 0),
+            'travel_time_minutes': data.get('travel_time_minutes', 30),
+            'lives_in_pg_or_hostel': data.get('lives_in_pg_or_hostel', 0),
+            'previous_board_cgpa': data.get('previous_board_cgpa', 8.0)
+        }
+        
+        # Make prediction
+        predicted_cgpa = cgpa_predictor.predict_cgpa(features)
+        
+        # Save prediction history
+        CGPAPrediction.objects.create(
+            user=user,
+            predicted_cgpa=predicted_cgpa,
+            actual_cgpa=user.cgpa,
+            num_S=features['num_S'],
+            num_A=features['num_A'],
+            num_B=features['num_B'],
+            num_C=features['num_C'],
+            num_D=features['num_D'],
+            num_F=features['num_F'],
+            study_hours_per_week=features['study_hours_per_week'],
+            participated_in_events=bool(features['participated_in_events']),
+            project_count=features['project_count'],
+            internship_experience=bool(features['internship_experience']),
+            travel_time_minutes=features['travel_time_minutes'],
+            lives_in_pg_or_hostel=bool(features['lives_in_pg_or_hostel']),
+            previous_board_cgpa=features['previous_board_cgpa'],
+            prediction_type='from_user_data'
+        )
+        
+        return Response({
+            'predicted_cgpa': predicted_cgpa,
+            'current_cgpa': user.cgpa or 0.0,
+            'grade_distribution': grade_counts,
+            'input_features': features,
+            'message': 'CGPA prediction based on user data successful'
+        }, status=status.HTTP_200_OK)
+    
+    except Exception as e:
+        print(f"Error in predict_cgpa_from_user_data: {e}")
+        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_prediction_form_data(request):
+    """
+    Get user's current academic data for pre-filling the prediction form
+    """
+    try:
+        user = request.user
+        user_semesters = Semester.objects.filter(user=user)
+        
+        # Calculate grade distribution from user's data
+        grade_counts = cgpa_predictor.calculate_grade_distribution(user_semesters)
+        
+        # Prepare form data
+        form_data = {
+            'current_cgpa': user.cgpa or 0.0,
+            'current_semester': user.semester,
+            'degree': user.degree,
+            'grade_distribution': grade_counts,
+            'default_features': {
+                'num_S': grade_counts['S'],
+                'num_A': grade_counts['A'],
+                'num_B': grade_counts['B'],
+                'num_C': grade_counts['C'],
+                'num_D': grade_counts['D'],
+                'num_F': grade_counts['F'],
+                'study_hours_per_week': 12,
+                'participated_in_events': 0,
+                'project_count': 0,
+                'internship_experience': 0,
+                'travel_time_minutes': 30,
+                'lives_in_pg_or_hostel': 0,
+                'previous_board_cgpa': 8.0
+            }
+        }
+        
+        return Response(form_data, status=status.HTTP_200_OK)
+    
+    except Exception as e:
+        print(f"Error in get_prediction_form_data: {e}")
+        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def train_prediction_model(request):
+    """
+    Train/retrain the CGPA prediction model (admin only)
+    """
+    try:
+        user = request.user
+        
+        # Check if user is admin/faculty (you can modify this condition based on your user model)
+        if not (user.is_staff or getattr(user, 'is_faculty', False)):
+            return Response({'error': 'Permission denied. Admin access required.'}, 
+                          status=status.HTTP_403_FORBIDDEN)
+        
+        # Train the model
+        performance_metrics = cgpa_predictor.train_model()
+        
+        return Response({
+            'message': 'Model training completed successfully',
+            'performance_metrics': performance_metrics
+        }, status=status.HTTP_200_OK)
+    
+    except Exception as e:
+        print(f"Error in train_prediction_model: {e}")
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_prediction_history(request):
+    """
+    Get user's CGPA prediction history
+    """
+    try:
+        user = request.user
+        predictions = CGPAPrediction.objects.filter(user=user)[:10]  # Last 10 predictions
+        
+        prediction_data = []
+        for prediction in predictions:
+            prediction_data.append({
+                'id': prediction.id,
+                'predicted_cgpa': prediction.predicted_cgpa,
+                'actual_cgpa': prediction.actual_cgpa,
+                'created_at': prediction.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                'prediction_type': prediction.prediction_type,
+                'input_features': {
+                    'num_S': prediction.num_S,
+                    'num_A': prediction.num_A,
+                    'num_B': prediction.num_B,
+                    'num_C': prediction.num_C,
+                    'num_D': prediction.num_D,
+                    'num_F': prediction.num_F,
+                    'study_hours_per_week': prediction.study_hours_per_week,
+                    'participated_in_events': prediction.participated_in_events,
+                    'project_count': prediction.project_count,
+                    'internship_experience': prediction.internship_experience,
+                    'travel_time_minutes': prediction.travel_time_minutes,
+                    'lives_in_pg_or_hostel': prediction.lives_in_pg_or_hostel,
+                    'previous_board_cgpa': prediction.previous_board_cgpa,
+                }
+            })
+        
+        return Response({
+            'predictions': prediction_data,
+            'total_count': CGPAPrediction.objects.filter(user=user).count()
+        }, status=status.HTTP_200_OK)
+    
+    except Exception as e:
+        print(f"Error in get_prediction_history: {e}")
         return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)

@@ -76,23 +76,66 @@ class _GradeCalculatorPageState extends State<GradeCalculatorPage> {
 
   Future<void> _initializeData() async {
     try {
-      final savedSemester = await storage.read(key: 'current_semester');
+      print('DEBUG: Starting _initializeData()');
       await fetchSubjects();
-      // Determine which semester to show: prefer savedSemester, else use the last available
-      if (savedSemester != null &&
-          subjectsStructure.containsKey(savedSemester)) {
-        _currentSemesterKey = savedSemester;
-      } else if (subjectsStructure.isNotEmpty) {
-        // Use the last key (assumed latest/current)
-        _currentSemesterKey = subjectsStructure.keys.last;
+      print('DEBUG: fetchSubjects() completed');
+      print(
+          'DEBUG: subjectsStructure keys: ${subjectsStructure.keys.toList()}');
+
+      // Get current user semester from API
+      print('DEBUG: Fetching user data...');
+      final userResponse = await ApiService.getUserData();
+      print('DEBUG: User data response status: ${userResponse.statusCode}');
+
+      if (userResponse.statusCode == 200) {
+        final userData = json.decode(userResponse.body);
+        print('DEBUG: User data: $userData');
+        final currentUserSemester = userData['user']['semester'];
+        print('DEBUG: Current user semester from API: $currentUserSemester');
+        final semesterKey = 'semester_$currentUserSemester';
+        print('DEBUG: Generated semester key: $semesterKey');
+
+        // Use the user's current semester if it exists in subjects structure
+        if (subjectsStructure.containsKey(semesterKey)) {
+          _currentSemesterKey = semesterKey;
+          print('DEBUG: Using user semester: $_currentSemesterKey');
+        } else if (subjectsStructure.isNotEmpty) {
+          // Fallback to first available semester
+          _currentSemesterKey = subjectsStructure.keys.first;
+          print('DEBUG: Fallback to first semester: $_currentSemesterKey');
+        } else {
+          _currentSemesterKey = null;
+          print('DEBUG: No semesters available, setting to null');
+        }
       } else {
-        _currentSemesterKey = null;
+        print('DEBUG: Failed to get user data, using fallback logic');
+        // Fallback to saved semester or last available
+        final savedSemester = await storage.read(key: 'current_semester');
+        print('DEBUG: Saved semester from storage: $savedSemester');
+        if (savedSemester != null &&
+            subjectsStructure.containsKey(savedSemester)) {
+          _currentSemesterKey = savedSemester;
+          print('DEBUG: Using saved semester: $_currentSemesterKey');
+        } else if (subjectsStructure.isNotEmpty) {
+          _currentSemesterKey = subjectsStructure.keys.first;
+          print('DEBUG: Fallback to first available: $_currentSemesterKey');
+        } else {
+          _currentSemesterKey = null;
+          print('DEBUG: No semesters available in fallback');
+        }
       }
-      // Load any previously saved grades for the current semester so they persist across opens
+
+      print('DEBUG: Final _currentSemesterKey: $_currentSemesterKey');
+
+      // Load any previously saved grades for the current semester
       if (_currentSemesterKey != null) {
+        print('DEBUG: Loading saved grades for: $_currentSemesterKey');
         await _loadSavedGrades(_currentSemesterKey!);
       }
+
+      print('DEBUG: _initializeData() completed successfully');
     } catch (e) {
+      print('DEBUG: Error in _initializeData(): $e');
       setState(() {
         errorMessage = 'Initialization error: $e';
         isLoading = false;
@@ -107,15 +150,21 @@ class _GradeCalculatorPageState extends State<GradeCalculatorPage> {
     });
 
     try {
+      print('DEBUG: Calling ApiService.getSubjects()...');
       final response = await ApiService.getSubjects();
+      print('DEBUG: getSubjects() response status: ${response.statusCode}');
+      print('DEBUG: getSubjects() response body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body) as Map<String, dynamic>;
+        print('DEBUG: Parsed subjects data: $data');
 
         final parsedData = data.map<String, Map<String, Map<String, int>>>(
             (semesterKey, semesterValue) {
+          print('DEBUG: Processing semester: $semesterKey');
           final slots = (semesterValue as Map<String, dynamic>)
               .map<String, Map<String, int>>((slotKey, slotValue) {
+            print('DEBUG: Processing slot: $slotKey');
             // Deduplicate courses
             final courses =
                 (slotValue as Map<String, dynamic>).map<String, int>(
@@ -129,6 +178,8 @@ class _GradeCalculatorPageState extends State<GradeCalculatorPage> {
           });
           return MapEntry(semesterKey, slots);
         });
+
+        print('DEBUG: Final parsed data: $parsedData');
 
         setState(() {
           subjectsStructure = parsedData;
@@ -146,16 +197,21 @@ class _GradeCalculatorPageState extends State<GradeCalculatorPage> {
             });
           });
         });
+
+        print(
+            'DEBUG: subjectsStructure after setState: ${subjectsStructure.keys.toList()}');
       } else {
         throw Exception('Failed to load subjects: ${response.statusCode}');
       }
     } catch (e) {
+      print('DEBUG: Error in fetchSubjects(): $e');
       setState(() {
         errorMessage = 'Error fetching subjects: $e';
       });
       _showErrorDialog('Failed to fetch subjects: $e');
     } finally {
       setState(() => isLoading = false);
+      print('DEBUG: fetchSubjects() completed, isLoading = false');
     }
   }
 

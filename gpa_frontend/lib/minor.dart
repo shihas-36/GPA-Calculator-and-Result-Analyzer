@@ -313,6 +313,8 @@ class _MinorCalculatorPageState extends State<MinorCalculatorPage> {
                       onChanged: (String? newValue) {
                         setState(() {
                           selectedSubjects[semester] = newValue!;
+                          // Automatically calculate SGPA when subject changes
+                          _calculateNewSgpa(semester, type);
                         });
                       },
                       items: buckets[selectedBucket]?[semester]
@@ -339,6 +341,8 @@ class _MinorCalculatorPageState extends State<MinorCalculatorPage> {
                       onChanged: (String? newValue) {
                         setState(() {
                           _gradeControllers[selectedSubject]?.text = newValue!;
+                          // Automatically calculate SGPA when grade changes
+                          _calculateNewSgpa(semester, type);
                         });
                       },
                       items:

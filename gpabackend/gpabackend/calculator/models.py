@@ -67,3 +67,36 @@ class GradeDetail(models.Model):
     def __str__(self):
         return f"{self.subject.name} - Marks: {self.marks}, Grade: {self.grade}"
 
+class CGPAPrediction(models.Model):
+    """
+    Model to store CGPA prediction history
+    """
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='cgpa_predictions')
+    predicted_cgpa = models.FloatField()
+    actual_cgpa = models.FloatField(null=True, blank=True)  # To compare with actual results later
+    
+    # Input features used for prediction
+    num_S = models.IntegerField(default=0)
+    num_A = models.IntegerField(default=0)
+    num_B = models.IntegerField(default=0)
+    num_C = models.IntegerField(default=0)
+    num_D = models.IntegerField(default=0)
+    num_F = models.IntegerField(default=0)
+    study_hours_per_week = models.FloatField(default=12.0)
+    participated_in_events = models.BooleanField(default=False)
+    project_count = models.IntegerField(default=0)
+    internship_experience = models.BooleanField(default=False)
+    travel_time_minutes = models.IntegerField(default=30)
+    lives_in_pg_or_hostel = models.BooleanField(default=False)
+    previous_board_cgpa = models.FloatField(default=8.0)
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    prediction_type = models.CharField(max_length=50, default='manual')  # 'manual' or 'from_user_data'
+    
+    def __str__(self):
+        return f"{self.user.username} - Predicted CGPA: {self.predicted_cgpa} ({self.created_at})"
+
+    class Meta:
+        ordering = ['-created_at']
+

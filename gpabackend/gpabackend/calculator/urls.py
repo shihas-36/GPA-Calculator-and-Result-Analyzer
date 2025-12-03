@@ -12,4 +12,10 @@ urlpatterns = [
     path("Summary/", views.summury, name="summary"),  # Fixed typo in endpoint and name
     path('export-pdf/', views.export_gpa_data, name='export_gpa_pdf'),  # Corrected function name
     path('fetch_students_by_faculty/', views.fetch_students_by_faculty, name='faculty'),  # Add the new endpoint
+    # CGPA Prediction endpoints
+    path('predict_cgpa/', views.predict_cgpa, name='predict_cgpa'),
+    path('predict_cgpa_from_user_data/', views.predict_cgpa_from_user_data, name='predict_cgpa_from_user_data'),
+    path('get_prediction_form_data/', views.get_prediction_form_data, name='get_prediction_form_data'),
+    path('get_prediction_history/', views.get_prediction_history, name='get_prediction_history'),
+    path('train_prediction_model/', views.train_prediction_model, name='train_prediction_model'),
 ]   
